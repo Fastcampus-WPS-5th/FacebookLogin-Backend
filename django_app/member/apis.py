@@ -1,10 +1,32 @@
 import requests
 from django.contrib.auth import get_user_model
+from rest_framework import permissions
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import APIException
+from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from .serializers import UserSerializer
+
 User = get_user_model()
+
+
+class TokenUserInfoAPIView(APIView):
+    def post(self, request):
+        token_string = request.data.get('token')
+        try:
+            token = Token.objects.get(key=token_string)
+        except Token.DoesNotExist:
+            raise APIException('token invalid')
+        user = token.user
+        return Response(UserSerializer(user).data)
+
+
+class UserDetailView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, pk=None):
+        return Response(UserSerializer(request.user).data)
 
 
 class FacebookLoginAPIView(APIView):
@@ -36,12 +58,7 @@ class FacebookLoginAPIView(APIView):
         # 관련정보를 한번에 리턴
         ret = {
             'token': token.key,
-            'user': {
-                'pk': user.pk,
-                'username': user.username,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-            }
+            'user': UserSerializer(user).data,
         }
         return Response(ret)
 
