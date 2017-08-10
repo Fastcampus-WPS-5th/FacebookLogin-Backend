@@ -1,7 +1,10 @@
 import requests
+from django.contrib.auth import get_user_model
+from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 from rest_framework.views import APIView
+User = get_user_model()
 
 
 class FacebookLoginAPIView(APIView):
@@ -21,7 +24,26 @@ class FacebookLoginAPIView(APIView):
         # 검증한 결과를 debug_result에 할당
         self.debug_token(token)
         user_info = self.get_user_info(token=token)
-        return Response(user_info)
+        # 이미존재하면 가져오고 아니면 create_facebook_user메서드를 사용
+        if User.objects.filter(username=user_info['id']).exists():
+            user = User.objects.get(username=user_info['id'])
+        else:
+            user = User.objects.create_facebook_user(user_info)
+
+        # DRF token을 생성
+        token, token_created = Token.objects.get_or_create(user=user)
+
+        # 관련정보를 한번에 리턴
+        ret = {
+            'token': token.key,
+            'user': {
+                'pk': user.pk,
+                'username': user.username,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+            }
+        }
+        return Response(ret)
 
     def debug_token(self, token):
         """
